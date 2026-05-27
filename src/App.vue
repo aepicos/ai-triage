@@ -407,9 +407,12 @@ void BaseLayoutGap
       <!-- Page body scroll area -->
       <div class="page-body">
 
-        <!-- Alert banner: pre-retest warning only (post-retest replaced by triage banner) -->
+        <!-- Alert banner: pre-retest warning → post-retest success -->
         <BaseAlert v-if="!retestDone" variant="warning" size="page">
           <strong>Snyk Code AI triage has run.</strong> Retest the project to capture recent policy updates and ignored issues.
+        </BaseAlert>
+        <BaseAlert v-else variant="success" size="page" :dismissible="true">
+          <strong>The project was successfully retested.</strong>
         </BaseAlert>
 
         <!-- Summary section: snapshot · metadata · issues tab — all one canvas-bg block -->
