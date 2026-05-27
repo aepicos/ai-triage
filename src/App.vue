@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import MdiIcon from './MdiIcon.vue'
 import PriorityRangeSlider from './PriorityRangeSlider.vue'
-import { issues as issuesData, type Issue, type CodeLine } from './issues-data'
+import { issues as issuesData, type Issue } from './issues-data'
 import { aiTriageIgnores } from './ai-triage-results'
 
 // ── ProductCL components ──────────────────────────────────────────────────────
@@ -18,16 +18,13 @@ import { aiTriageIgnores } from './ai-triage-results'
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   BaseAlert,
-  BaseAllCaps,
   BaseAvatarUsername,
   BaseBadge,
   BaseButton,
   BaseCaption,
   BaseCheckbox,
-  BaseHeading,
   BaseInput,
   BaseLayoutGap,
-  BaseRangeSlider,
   BaseTabs,
 } from './productcl-stubs'
 
@@ -39,7 +36,6 @@ import {
   mdiFilter,
   mdiGithub,
   mdiLinkVariant,
-  mdiOpenInNew,
   mdiPencil,
   mdiPlusCircleOutline,
   mdiRefresh,
