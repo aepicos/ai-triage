@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import MdiIcon from './MdiIcon.vue'
 import PriorityRangeSlider from './PriorityRangeSlider.vue'
+import IgnoreRequestsPage from './IgnoreRequestsPage.vue'
 import { issues as issuesData, type Issue } from './issues-data'
 import { aiTriageIgnores } from './ai-triage-results'
 
@@ -51,15 +52,18 @@ import {
   mdiRobotOutline,
 } from '@mdi/js'
 
-interface NavItem { label: string; path: string; active?: boolean }
+const currentPage = ref<'projects' | 'ignore-requests'>('projects')
+
+interface NavItem { label: string; path: string; page?: 'projects' | 'ignore-requests' }
 const primaryNav: NavItem[] = [
-  { label: 'Dashboard',  path: mdiViewDashboard },
-  { label: 'Projects',   path: mdiFolderMultiple, active: true },
-  { label: 'Reports',    path: mdiChartBox },
-  { label: 'Issues',     path: mdiShieldAccount },
-  { label: 'Policies',   path: mdiDatabase },
-  { label: 'Members',    path: mdiAccountSupervisor },
-  { label: 'Settings',   path: mdiCog },
+  { label: 'Dashboard',        path: mdiViewDashboard },
+  { label: 'Projects',         path: mdiFolderMultiple,    page: 'projects' },
+  { label: 'Ignore requests',  path: mdiEye,               page: 'ignore-requests' },
+  { label: 'Reports',          path: mdiChartBox },
+  { label: 'Issues',           path: mdiShieldAccount },
+  { label: 'Policies',         path: mdiDatabase },
+  { label: 'Members',          path: mdiAccountSupervisor },
+  { label: 'Settings',         path: mdiCog },
 ]
 const utilNav: NavItem[] = [
   { label: 'Help',          path: mdiHelpCircle },
@@ -277,7 +281,8 @@ void BaseLayoutGap
           v-for="item in primaryNav"
           :key="item.label"
           class="sidebar__item"
-          :class="{ 'sidebar__item--active': item.active }"
+          :class="{ 'sidebar__item--active': item.page && currentPage === item.page }"
+          @click="item.page && (currentPage = item.page)"
         >
           <MdiIcon :path="item.path" :size="18" />
           <span>{{ item.label }}</span>
@@ -292,7 +297,10 @@ void BaseLayoutGap
     </nav>
     <!-- ══ END PROTOTYPE-ONLY ════════════════════════════════════════════ -->
 
-    <div class="main-area">
+    <!-- Ignore requests page -->
+    <IgnoreRequestsPage v-if="currentPage === 'ignore-requests'" />
+
+    <div v-else class="main-area">
 
       <!-- Page header: breadcrumbs + title + tabs — unified bg-white block -->
       <!-- PRODUCTION-SAFE -->
