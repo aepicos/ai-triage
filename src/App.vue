@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import MdiIcon from './MdiIcon.vue'
 import PriorityRangeSlider from './PriorityRangeSlider.vue'
 import IgnoreRequestsPage from './IgnoreRequestsPage.vue'
@@ -50,9 +50,48 @@ import {
   mdiHelpCircle,
   mdiBell,
   mdiRobotOutline,
+  mdiArrowRight,
+  mdiClose,
 } from '@mdi/js'
 
-const currentPage = ref<'projects' | 'ignore-requests'>('projects')
+// ── Routing ───────────────────────────────────────────────────────────────────
+type Page = 'projects' | 'ignore-requests'
+
+const routes: Record<Page, string> = {
+  'projects':        '/org/acme/project/ab12c345-6de7-8901-2345-67fg8h901ijk',
+  'ignore-requests': '/acme/ignore-requests',
+}
+
+function pageFromPath(path: string): Page {
+  for (const [page, route] of Object.entries(routes) as [Page, string][]) {
+    if (path === route) return page
+  }
+  return 'projects'
+}
+
+const currentPage = ref<Page>(pageFromPath(window.location.pathname))
+
+function navigate(page: Page) {
+  if (currentPage.value === page) return
+  history.pushState({ page }, '', routes[page])
+  currentPage.value = page
+}
+
+function onPopState(e: PopStateEvent) {
+  currentPage.value = e.state?.page ?? pageFromPath(window.location.pathname)
+}
+
+onMounted(() => {
+  // Ensure the initial URL reflects the page (handles direct load at /)
+  if (!Object.values(routes).includes(window.location.pathname)) {
+    history.replaceState({ page: 'projects' }, '', routes['projects'])
+  } else {
+    history.replaceState({ page: currentPage.value }, '', window.location.pathname)
+  }
+  window.addEventListener('popstate', onPopState)
+})
+
+onUnmounted(() => window.removeEventListener('popstate', onPopState))
 
 interface NavItem { label: string; path: string; page?: 'projects' | 'ignore-requests' }
 const primaryNav: NavItem[] = [
@@ -120,6 +159,16 @@ const languageFilters    = ref<string[]>([])
 const vulnTypeFilters    = ref<string[]>([])
 const confidenceFilters  = ref<string[]>([])
 
+function reviewLowConfidence() {
+  severityFilters.value   = []
+  statusFilters.value     = ['ignored']
+  languageFilters.value   = []
+  vulnTypeFilters.value   = []
+  searchQuery.value       = ''
+  priorityRange.value     = { min: 0, max: 1000 }
+  confidenceFilters.value = ['Low']
+}
+
 // Filter section open/closed state
 const filterOpen = ref<Record<string, boolean>>({
   severity:   true,
@@ -148,6 +197,21 @@ const confidenceCounts = computed(() => ({
   medium: issues.value.filter(i => i.ignoreInfo?.confidence === 'Medium').length,
   low:    issues.value.filter(i => i.ignoreInfo?.confidence === 'Low').length,
 }))
+
+// ── AI triage banner (post-retest) ────────────────────────────────────────────
+const triageBannerDismissed = ref(false)
+const showTriageBanner = computed(() => retestDone.value && !triageBannerDismissed.value)
+const confidenceTotal = computed(() =>
+  confidenceCounts.value.high + confidenceCounts.value.medium + confidenceCounts.value.low
+)
+const confidenceBarWidths = computed(() => {
+  const t = confidenceTotal.value || 1
+  return {
+    high:   (confidenceCounts.value.high   / t * 100).toFixed(1) + '%',
+    medium: (confidenceCounts.value.medium / t * 100).toFixed(1) + '%',
+    low:    (confidenceCounts.value.low    / t * 100).toFixed(1) + '%',
+  }
+})
 
 const languageCounts = computed(() => ({
   typescript: issuesData.filter(i => i.filePath.endsWith('.ts')).length,
@@ -282,7 +346,7 @@ void BaseLayoutGap
           :key="item.label"
           class="sidebar__item"
           :class="{ 'sidebar__item--active': item.page && currentPage === item.page }"
-          @click="item.page && (currentPage = item.page)"
+          @click="item.page && navigate(item.page)"
         >
           <MdiIcon :path="item.path" :size="18" />
           <span>{{ item.label }}</span>
@@ -343,12 +407,9 @@ void BaseLayoutGap
       <!-- Page body scroll area -->
       <div class="page-body">
 
-        <!-- Alert banner: pre-retest warning → post-retest success -->
+        <!-- Alert banner: pre-retest warning only (post-retest replaced by triage banner) -->
         <BaseAlert v-if="!retestDone" variant="warning" size="page">
           <strong>Snyk Code AI triage has run.</strong> Retest the project to capture recent policy updates and ignored issues.
-        </BaseAlert>
-        <BaseAlert v-else variant="success" size="page" :dismissible="true">
-          <strong>The project was successfully retested.</strong>
         </BaseAlert>
 
         <!-- Summary section: snapshot · metadata · issues tab — all one canvas-bg block -->
@@ -541,6 +602,83 @@ void BaseLayoutGap
 
           <!-- Issue list -->
           <div class="issue-list">
+
+            <!-- AI triage summary banner (post-retest) -->
+            <Transition name="triage-banner">
+              <div v-if="showTriageBanner" class="triage-banner">
+
+                <!-- Banner header -->
+                <div class="triage-banner-header">
+                  <div class="triage-banner-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="triage-banner-icon">
+                      <path d="M18 10L19.25 7.25L22 6L19.25 4.75L18 2L16.75 4.75L14 6L16.75 7.25L18 10ZM12.5 11.5L10 6L7.5 11.5L2 14L7.5 16.5L10 22L12.5 16.5L18 14L12.5 11.5Z"/>
+                    </svg>
+                    <span class="triage-banner-label">Snyk Code AI Triage</span>
+                  </div>
+                  <div class="triage-banner-actions">
+                    <a href="#" class="triage-banner-link" @click.prevent="navigate('ignore-requests')">
+                      View all suppressed issues
+                      <MdiIcon :path="mdiArrowRight" :size="13" aria-hidden="true" style="vertical-align:-2px" />
+                    </a>
+                    <span class="triage-banner-divider" aria-hidden="true">|</span>
+                    <button class="triage-banner-close" @click="triageBannerDismissed = true" aria-label="Dismiss">
+                      <MdiIcon :path="mdiClose" :size="16" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Banner content -->
+                <div class="triage-banner-content">
+
+                  <!-- KPIs -->
+                  <div class="triage-kpis">
+                    <div class="triage-kpi">
+                      <p class="triage-kpi-label">Issues evaluated</p>
+                      <p class="triage-kpi-value">{{ issues.length }}</p>
+                      <p class="triage-kpi-sub">From last scan</p>
+                    </div>
+                    <div class="triage-kpi">
+                      <p class="triage-kpi-label">Issues suppressed</p>
+                      <p class="triage-kpi-value">{{ statusCounts.ignored }}</p>
+                      <p class="triage-kpi-sub">{{ Math.round(statusCounts.ignored / issues.length * 100) }}% of issues</p>
+                    </div>
+                    <div class="triage-kpi">
+                      <p class="triage-kpi-label">Flagged for review</p>
+                      <p class="triage-kpi-value">{{ confidenceCounts.low }}</p>
+                      <p class="triage-kpi-sub">Manual review recommended</p>
+                    </div>
+                    <div class="triage-kpi triage-kpi--chart">
+                      <p class="triage-kpi-label">Confidence distribution</p>
+                      <div class="triage-conf-bar-wrap">
+                        <div class="triage-conf-bar">
+                          <div class="triage-conf-seg triage-conf-seg--high"   :style="{ width: confidenceBarWidths.high }"></div>
+                          <div class="triage-conf-seg triage-conf-seg--medium" :style="{ width: confidenceBarWidths.medium }"></div>
+                          <div class="triage-conf-seg triage-conf-seg--low"    :style="{ width: confidenceBarWidths.low }"></div>
+                        </div>
+                      </div>
+                      <div class="triage-conf-legend">
+                        <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--high"></span>High ({{ confidenceCounts.high }})</span>
+                        <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--medium"></span>Medium ({{ confidenceCounts.medium }})</span>
+                        <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--low"></span>Low ({{ confidenceCounts.low }})</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Low-confidence alert -->
+                  <div v-if="confidenceCounts.low > 0" class="triage-alert">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="triage-alert-icon">
+                      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    <p class="triage-alert-text">
+                      <strong>{{ confidenceCounts.low }} finding{{ confidenceCounts.low === 1 ? '' : 's' }} suppressed with low confidence</strong>
+                      — these decisions are less certain and warrant manual review before the next retest.
+                      <button class="triage-alert-link" @click="reviewLowConfidence()">Review</button>
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+            </Transition>
 
             <!-- Search + controls bar (single row) -->
             <div class="search-controls-bar">
@@ -1072,6 +1210,208 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   to { transform: rotate(360deg); }
 }
 
+/* ── AI triage banner ────────────────────────────────────────────────────── */
+.triage-banner {
+  flex-shrink: 0;
+  border: 1px solid var(--pcl-color-ui-border);
+  border-radius: 8px;
+  margin: var(--pcl-space-m, 16px) var(--pcl-space-l, 24px) 0 var(--pcl-space-l, 24px);
+  background: var(--pcl-color-ui-bg);
+  overflow: hidden;
+}
+
+/* header row */
+.triage-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 8px 16px;
+}
+
+.triage-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.triage-banner-icon {
+  color: var(--pcl-color-ui-dimmed);
+  flex-shrink: 0;
+}
+
+.triage-banner-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pcl-color-ui-dimmed);
+  white-space: nowrap;
+}
+
+.triage-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.triage-banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 14px;
+  color: var(--pcl-color-ui-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+.triage-banner-link:hover { text-decoration: none; }
+
+.triage-banner-divider {
+  font-size: 14px;
+  color: var(--pcl-color-ui-border);
+  user-select: none;
+}
+
+.triage-banner-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border: none; background: none; cursor: pointer; padding: 0;
+  color: var(--pcl-color-ui-dimmed);
+  border-radius: 4px;
+}
+.triage-banner-close:hover { background: var(--pcl-color-ui-canvas); color: var(--pcl-color-ui-body); }
+
+/* content area */
+.triage-banner-content {
+  border-top: 1px solid var(--pcl-color-ui-border-light, #f2f1f4);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* KPI row */
+.triage-kpis {
+  display: flex;
+  align-items: flex-start;
+}
+
+.triage-kpi {
+  flex: 1;
+}
+
+.triage-kpi--chart {
+  flex: 1.4;
+}
+
+.triage-kpi-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pcl-color-ui-body);
+  margin: 0 0 10px;
+  line-height: 18px;
+}
+
+.triage-kpi-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--pcl-color-ui-heading);
+  line-height: 28px;
+  margin: 0;
+}
+
+.triage-kpi-sub {
+  font-size: 12px;
+  color: var(--pcl-color-ui-dimmed);
+  margin: 0;
+  line-height: 16px;
+}
+
+/* confidence bar chart */
+.triage-conf-bar-wrap {
+  padding: 8px 0;
+}
+
+.triage-conf-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  border-radius: 128px;
+  overflow: hidden;
+}
+
+.triage-conf-seg { height: 100%; border-radius: 0; }
+.triage-conf-seg--high   { background: #2d9283; }
+.triage-conf-seg--medium { background: #e27122; }
+.triage-conf-seg--low    { background: #d8082d; }
+
+.triage-conf-legend {
+  display: flex;
+  gap: 16px;
+}
+
+.triage-conf-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--pcl-color-ui-dimmed);
+  white-space: nowrap;
+}
+
+.triage-conf-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.triage-conf-dot--high   { background: #2d9283; }
+.triage-conf-dot--medium { background: #e27122; }
+.triage-conf-dot--low    { background: #d8082d; }
+
+/* low-confidence alert */
+.triage-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--pcl-color-warn-bg, #fff4ed);
+  border: 1px solid var(--pcl-color-warn-bg-alt, #fdd3b6);
+  border-radius: 4px;
+}
+
+.triage-alert-icon {
+  color: var(--pcl-color-warn-text, #b6540b);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.triage-alert-text {
+  font-size: 14px;
+  color: var(--pcl-color-warn-text, #b6540b);
+  margin: 0;
+  line-height: 20px;
+}
+
+.triage-alert-link {
+  border: none; background: none; padding: 0;
+  font: inherit; cursor: pointer;
+  color: var(--pcl-color-ui-link, #145deb);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.triage-alert-link:hover { text-decoration: none; }
+
+/* transition */
+.triage-banner-enter-active,
+.triage-banner-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.triage-banner-enter-from,
+.triage-banner-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 /* PRODUCTION-SAFE — link text (breadcrumbs, inline body links) */
 .link-text {
   color: var(--pcl-color-ui-link);
@@ -1235,7 +1575,7 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--pcl-color-ui-canvas);
+  background: var(--pcl-color-ui-bg);
 }
 
 /* PRODUCTION-SAFE — combined search + controls single bar */
