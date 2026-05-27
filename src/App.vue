@@ -50,7 +50,6 @@ import {
   mdiHelpCircle,
   mdiBell,
   mdiRobotOutline,
-  mdiArrowRight,
   mdiClose,
   mdiMinus,
   mdiPlus,
