@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import MdiIcon from './MdiIcon.vue'
 import PriorityRangeSlider from './PriorityRangeSlider.vue'
 import IgnoreRequestsPage from './IgnoreRequestsPage.vue'
+import SettingsPage from './SettingsPage.vue'
 import { issues as issuesData, type Issue } from './issues-data'
 import { aiTriageIgnores } from './ai-triage-results'
 
@@ -55,11 +56,12 @@ import {
 } from '@mdi/js'
 
 // ── Routing ───────────────────────────────────────────────────────────────────
-type Page = 'projects' | 'ignore-requests'
+type Page = 'projects' | 'ignore-requests' | 'settings'
 
 const routes: Record<Page, string> = {
   'projects':        '/org/acme/project/ab12c345-6de7-8901-2345-67fg8h901ijk',
   'ignore-requests': '/acme/ignore-requests',
+  'settings':        '/acme/settings',
 }
 
 function pageFromPath(path: string): Page {
@@ -93,7 +95,7 @@ onMounted(() => {
 
 onUnmounted(() => window.removeEventListener('popstate', onPopState))
 
-interface NavItem { label: string; path: string; page?: 'projects' | 'ignore-requests' }
+interface NavItem { label: string; path: string; page?: Page }
 const primaryNav: NavItem[] = [
   { label: 'Dashboard',        path: mdiViewDashboard },
   { label: 'Projects',         path: mdiFolderMultiple,    page: 'projects' },
@@ -102,7 +104,7 @@ const primaryNav: NavItem[] = [
   { label: 'Issues',           path: mdiShieldAccount },
   { label: 'Policies',         path: mdiDatabase },
   { label: 'Members',          path: mdiAccountSupervisor },
-  { label: 'Settings',         path: mdiCog },
+  { label: 'Settings',         path: mdiCog,               page: 'settings' },
 ]
 const utilNav: NavItem[] = [
   { label: 'Help',          path: mdiHelpCircle },
@@ -363,6 +365,9 @@ void BaseLayoutGap
 
     <!-- Ignore requests page -->
     <IgnoreRequestsPage v-if="currentPage === 'ignore-requests'" />
+
+    <!-- Settings page -->
+    <SettingsPage v-else-if="currentPage === 'settings'" />
 
     <div v-else class="main-area">
 
@@ -907,6 +912,15 @@ void BaseLayoutGap
 
   /* Danger */
   --pcl-color-danger-text:    #8f0018;
+
+  /* State */
+  --pcl-color-state-selected-bg-alt: #b5ccfa;
+  --pcl-color-blue-10:               #eaf1ff;
+
+  /* Success */
+  --pcl-color-success-bg:     #ecfcf8;
+  --pcl-color-success-bg-alt: #b4e4d9;
+  --pcl-color-success-text:   #16706b;
 
   /* Warning (matches BaseAlert warning variant) */
   --pcl-color-warning-bg:     #fff8e6;
