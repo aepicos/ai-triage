@@ -1216,10 +1216,10 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 /* ── AI triage banner ────────────────────────────────────────────────────── */
 .triage-banner {
   flex-shrink: 0;
-  border: 1px solid var(--pcl-color-ui-border);
+  border: 1px solid var(--pcl-color-ui-border-light, #f2f1f4);
   border-radius: 8px;
   margin: var(--pcl-space-m, 16px) var(--pcl-space-l, 24px) 0 var(--pcl-space-l, 24px);
-  background: var(--pcl-color-ui-bg);
+  background: var(--pcl-color-ui-canvas);
   overflow: hidden;
 }
 
@@ -1341,6 +1341,7 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   height: 8px;
   border-radius: 128px;
   overflow: hidden;
+  box-shadow: 0 0 0 2px var(--pcl-color-ui-bg);
 }
 
 .triage-conf-seg { height: 100%; border-radius: 0; }
@@ -1366,6 +1367,7 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   width: 8px; height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--pcl-color-ui-bg);
 }
 .triage-conf-dot--high   { background: #2d9283; }
 .triage-conf-dot--medium { background: #e27122; }
