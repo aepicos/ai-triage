@@ -115,18 +115,20 @@ function onRetest() {
   }, RETEST_DURATION_MS)
 }
 
-const severityFilters  = ref<string[]>([])
-const statusFilters    = ref<string[]>(['open', 'ignored'])
-const languageFilters  = ref<string[]>([])
-const vulnTypeFilters  = ref<string[]>([])
+const severityFilters    = ref<string[]>([])
+const statusFilters      = ref<string[]>(['open'])
+const languageFilters    = ref<string[]>([])
+const vulnTypeFilters    = ref<string[]>([])
+const confidenceFilters  = ref<string[]>([])
 
 // Filter section open/closed state
 const filterOpen = ref<Record<string, boolean>>({
-  severity: true,
-  score:    true,
-  status:   true,
-  languages: true,
-  vulnTypes: true,
+  severity:   true,
+  score:      true,
+  status:     true,
+  confidence: true,
+  languages:  true,
+  vulnTypes:  true,
 })
 
 // Derived counts — all computed from the real issues array so they stay in sync
@@ -140,6 +142,12 @@ const severityCounts = computed(() => ({
 const statusCounts = computed(() => ({
   open:    issues.value.filter(i => !i.ignored).length,
   ignored: issues.value.filter(i =>  i.ignored).length,
+}))
+
+const confidenceCounts = computed(() => ({
+  high:   issues.value.filter(i => i.ignoreInfo?.confidence === 'High').length,
+  medium: issues.value.filter(i => i.ignoreInfo?.confidence === 'Medium').length,
+  low:    issues.value.filter(i => i.ignoreInfo?.confidence === 'Low').length,
 }))
 
 const languageCounts = computed(() => ({
@@ -173,6 +181,12 @@ const filteredIssues = computed(() => {
     // ── Severity ─────────────────────────────────────────────────────────────
     if (severityFilters.value.length > 0 && !severityFilters.value.includes(issue.severity)) {
       return false
+    }
+
+    // ── AI triage confidence ──────────────────────────────────────────────────
+    if (confidenceFilters.value.length > 0) {
+      const c = issue.ignoreInfo?.confidence
+      if (!c || !confidenceFilters.value.includes(c)) return false
     }
 
     // ── Vulnerability type ────────────────────────────────────────────────────
@@ -469,6 +483,24 @@ void BaseLayoutGap
               </div>
             </div>
 
+            <!-- AI triage confidence -->
+            <div class="filter-section">
+              <button class="filter-section-header" @click="filterOpen.confidence = !filterOpen.confidence">
+                <MdiIcon
+                  :path="mdiChevronDown"
+                  :size="14"
+                  :style="{ transform: filterOpen.confidence ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s', flexShrink: 0 }"
+                  aria-hidden="true"
+                />
+                <span class="filter-section-label">AI triage confidence</span>
+              </button>
+              <div v-if="filterOpen.confidence" class="filter-options">
+                <BaseCheckbox v-model="confidenceFilters" value="High"><span class="filter-label-row">High<span class="filter-count">{{ confidenceCounts.high }}</span></span></BaseCheckbox>
+                <BaseCheckbox v-model="confidenceFilters" value="Medium"><span class="filter-label-row">Medium<span class="filter-count">{{ confidenceCounts.medium }}</span></span></BaseCheckbox>
+                <BaseCheckbox v-model="confidenceFilters" value="Low"><span class="filter-label-row">Low<span class="filter-count">{{ confidenceCounts.low }}</span></span></BaseCheckbox>
+              </div>
+            </div>
+
             <!-- Languages -->
             <div class="filter-section">
               <button class="filter-section-header" @click="filterOpen.languages = !filterOpen.languages">
@@ -621,7 +653,7 @@ void BaseLayoutGap
                       <!-- AI triage avatar: sparkle icon in gradient circle -->
                       <div v-if="issue.ignoreInfo.by === 'Snyk Code AI Triage'" class="ignore-avatar-row">
                         <div class="ai-triage-avatar">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                             <path d="M18 10L19.25 7.25L22 6L19.25 4.75L18 2L16.75 4.75L14 6L16.75 7.25L18 10ZM12.5 11.5L10 6L7.5 11.5L2 14L7.5 16.5L10 22L12.5 16.5L18 14L12.5 11.5Z"/>
                           </svg>
                         </div>
@@ -1536,8 +1568,8 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 }
 
 .ai-triage-avatar {
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: linear-gradient(135deg, #6b28d9, #145deb);
   display: flex;
@@ -1548,15 +1580,15 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 }
 
 .ignore-avatar-circle {
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #4a5568;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   color: #fff;
 }
