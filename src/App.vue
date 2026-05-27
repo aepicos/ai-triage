@@ -50,7 +50,6 @@ import {
   mdiHelpCircle,
   mdiBell,
   mdiRobotOutline,
-  mdiClose,
   mdiMinus,
   mdiPlus,
 } from '@mdi/js'
@@ -1410,7 +1409,10 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 }
 
 /* transition */
-.triage-banner-enter-active,
+.triage-banner-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  animation: triage-flash 1.6s ease forwards;
+}
 .triage-banner-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
@@ -1418,6 +1420,12 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 .triage-banner-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+@keyframes triage-flash {
+  0%   { background-color: var(--pcl-color-ui-canvas); }
+  15%  { background-color: #ece7f8; }
+  100% { background-color: var(--pcl-color-ui-canvas); }
 }
 
 /* PRODUCTION-SAFE — link text (breadcrumbs, inline body links) */
