@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import MdiIcon from './MdiIcon.vue'
 import PriorityRangeSlider from './PriorityRangeSlider.vue'
 import { issues as issuesData, type Issue, type CodeLine } from './issues-data'
+import { aiTriageIgnores } from './ai-triage-results'
 
 // ── ProductCL components ──────────────────────────────────────────────────────
 // Imported from local stubs — a file that approximates the real library API so
@@ -84,6 +85,36 @@ const searchQuery   = ref('')
 const priorityRange = ref({ min: 0, max: 1000 })
 const issueScores   = issuesData.map(i => i.score)
 
+// ── Retest ────────────────────────────────────────────────────────────────────
+const RETEST_DURATION_MS = 6000
+const retesting   = ref(false)
+const retestDone  = ref(false)
+
+function onRetest() {
+  if (retesting.value) return
+  retesting.value = true
+  setTimeout(() => {
+    retesting.value = false
+    retestDone.value = true
+    // Apply AI triage ignores
+    for (const triage of aiTriageIgnores) {
+      const issue = issues.value.find(i => i.id === triage.issueId)
+      if (issue && !issue.ignored) {
+        issue.ignored = true
+        issue.ignoreInfo = {
+          by: 'Snyk Code AI Triage',
+          minutesAgo: 0,
+          type: 'Not vulnerable',
+          path: issue.filePath,
+          expires: 'Never',
+          reason: triage.reason,
+          confidence: triage.confidence,
+        }
+      }
+    }
+  }, RETEST_DURATION_MS)
+}
+
 const severityFilters  = ref<string[]>([])
 const statusFilters    = ref<string[]>(['open', 'ignored'])
 const languageFilters  = ref<string[]>([])
@@ -107,8 +138,8 @@ const severityCounts = computed(() => ({
 }))
 
 const statusCounts = computed(() => ({
-  open:    issuesData.filter(i => !i.ignored).length,
-  ignored: issuesData.filter(i =>  i.ignored).length,
+  open:    issues.value.filter(i => !i.ignored).length,
+  ignored: issues.value.filter(i =>  i.ignored).length,
 }))
 
 const languageCounts = computed(() => ({
@@ -295,9 +326,12 @@ void BaseLayoutGap
       <!-- Page body scroll area -->
       <div class="page-body">
 
-        <!-- Success alert -->
-        <BaseAlert variant="warning" size="page">
-          Retest the project to capture recent policy updates and ignored issues.
+        <!-- Alert banner: pre-retest warning → post-retest success -->
+        <BaseAlert v-if="!retestDone" variant="warning" size="page">
+          <strong>Snyk Code AI triage has run.</strong> Retest the project to capture recent policy updates and ignored issues.
+        </BaseAlert>
+        <BaseAlert v-else variant="success" size="page" :dismissible="true">
+          <strong>The project was successfully retested.</strong>
         </BaseAlert>
 
         <!-- Summary section: snapshot · metadata · issues tab — all one canvas-bg block -->
@@ -312,8 +346,9 @@ void BaseLayoutGap
               Snapshot for commit&nbsp;<a href="#" class="snapshot-link" @click.prevent>e12c282</a>&nbsp;taken by snyk.io 2 minutes ago
             </span>
             <span class="snapshot-dot" aria-hidden="true">·</span>
-            <button class="retest-btn" type="button">
-              <MdiIcon :path="mdiRefresh" :size="14" aria-hidden="true" />
+            <button class="retest-btn" :class="{ 'retest-btn--busy': retesting }" type="button" :disabled="retesting" @click="onRetest">
+              <span v-if="retesting" class="retest-spinner" aria-hidden="true"></span>
+              <MdiIcon v-else :path="mdiRefresh" :size="14" aria-hidden="true" />
               Retest
             </button>
           </div>
@@ -583,23 +618,40 @@ void BaseLayoutGap
                       <BaseCaption style="color:var(--pcl-color-ui-dimmed)">
                         Ignored {{ issue.ignoreInfo.minutesAgo }} minutes ago by
                       </BaseCaption>
-                      <BaseAvatarUsername :name="issue.ignoreInfo.by" initials="W" size="small" />
+                      <!-- AI triage avatar: sparkle icon in gradient circle -->
+                      <div v-if="issue.ignoreInfo.by === 'Snyk Code AI Triage'" class="ignore-avatar-row">
+                        <div class="ai-triage-avatar">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M18 10L19.25 7.25L22 6L19.25 4.75L18 2L16.75 4.75L14 6L16.75 7.25L18 10ZM12.5 11.5L10 6L7.5 11.5L2 14L7.5 16.5L10 22L12.5 16.5L18 14L12.5 11.5Z"/>
+                          </svg>
+                        </div>
+                        <span class="ignore-avatar-name">{{ issue.ignoreInfo.by }}</span>
+                      </div>
+                      <!-- Regular user avatar: initial circle + name -->
+                      <div v-else class="ignore-avatar-row">
+                        <div class="ignore-avatar-circle">{{ issue.ignoreInfo.by[0] }}</div>
+                        <span class="ignore-avatar-name">{{ issue.ignoreInfo.by }}</span>
+                      </div>
                     </div>
                     <div class="ignore-info-cell">
                       <BaseCaption style="color:var(--pcl-color-ui-dimmed)">Ignored path</BaseCaption>
-                      <BaseCaption>{{ issue.ignoreInfo.path }}</BaseCaption>
+                      <BaseCaption style="font-weight:600;color:var(--pcl-color-ui-body)">{{ issue.ignoreInfo.path }}</BaseCaption>
                     </div>
                     <div class="ignore-info-cell">
                       <BaseCaption style="color:var(--pcl-color-ui-dimmed)">Type</BaseCaption>
-                      <BaseCaption>{{ issue.ignoreInfo.type }}</BaseCaption>
+                      <BaseCaption style="font-weight:600;color:var(--pcl-color-ui-body)">{{ issue.ignoreInfo.type }}</BaseCaption>
                     </div>
                     <div class="ignore-info-cell">
                       <BaseCaption style="color:var(--pcl-color-ui-dimmed)">Expires</BaseCaption>
-                      <BaseCaption>{{ issue.ignoreInfo.expires }}</BaseCaption>
+                      <BaseCaption style="font-weight:600;color:var(--pcl-color-ui-body)">{{ issue.ignoreInfo.expires }}</BaseCaption>
+                    </div>
+                    <div v-if="issue.ignoreInfo.confidence" class="ignore-info-cell">
+                      <BaseCaption style="color:var(--pcl-color-ui-dimmed)">Confidence</BaseCaption>
+                      <BaseCaption style="font-weight:600;color:var(--pcl-color-ui-body)">{{ issue.ignoreInfo.confidence }}</BaseCaption>
                     </div>
                     <div class="ignore-info-cell ignore-info-cell--full">
                       <BaseCaption style="color:var(--pcl-color-ui-dimmed)">Reason</BaseCaption>
-                      <BaseCaption style="font-weight:600">{{ issue.ignoreInfo.reason }}</BaseCaption>
+                      <BaseCaption style="font-weight:600;color:var(--pcl-color-ui-body)">{{ issue.ignoreInfo.reason }}</BaseCaption>
                     </div>
                   </div>
                 </div>
@@ -965,7 +1017,23 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   font-family: inherit;
 }
 
-.retest-btn:hover { background: var(--pcl-color-ui-bg); }
+.retest-btn:hover:not(:disabled) { background: var(--pcl-color-ui-bg); }
+.retest-btn--busy { opacity: 0.6; cursor: default; }
+
+.retest-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: retest-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes retest-spin {
+  to { transform: rotate(360deg); }
+}
 
 /* PRODUCTION-SAFE — link text (breadcrumbs, inline body links) */
 .link-text {
@@ -1447,7 +1515,7 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 
 .ignore-info-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px 16px;
 }
 
@@ -1459,6 +1527,44 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 
 .ignore-info-cell--full {
   grid-column: 1 / -1;
+}
+
+.ignore-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-triage-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6b28d9, #145deb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.ignore-avatar-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #4a5568;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.ignore-avatar-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pcl-color-ui-body);
 }
 
 /* PRODUCTION-SAFE — issue action buttons row */

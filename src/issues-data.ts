@@ -15,6 +15,7 @@ export interface IgnoreInfo {
   path: string
   expires: string
   reason: string
+  confidence?: 'High' | 'Medium' | 'Low'
 }
 
 export interface Issue {
@@ -436,7 +437,7 @@ export const issues: Issue[] = [
     filePath: 'routes/login.ts',
     steps: 1,
     ignoreInfo: {
-      by: 'Wile E.',
+      by: 'Penelope P.',
       minutesAgo: 720,
       type: "Won't fix",
       path: '*',
@@ -2768,7 +2769,7 @@ export const issues: Issue[] = [
     filePath: 'routes/delivery.ts',
     steps: 1,
     ignoreInfo: {
-      by: 'Wile E.',
+      by: 'Daffy D.',
       minutesAgo: 60,
       type: "Won't fix",
       path: 'routes/delivery.ts',

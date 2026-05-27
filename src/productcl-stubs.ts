@@ -1787,7 +1787,7 @@ export const BaseAlert = defineComponent({
       return h('div', {
         style: [
           `display:flex;align-items:flex-start;gap:10px;padding:${props.inline ? '6px 10px' : '12px 16px'}`,
-          `background:${s.bg};border:1px solid ${s.border};border-radius:${props.inline ? '4px' : '6px'}`,
+          `background:${s.bg};border-color:${s.border};border-style:solid;border-width:${props.size === 'page' ? '1px 0' : '1px'};border-radius:${props.inline || props.size === 'page' ? '0' : '6px'}`,
           font(14, 400, s.color),
         ].join(';'),
       }, [
