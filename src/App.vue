@@ -43,7 +43,6 @@ import {
   mdiPencil,
   mdiPlusCircleOutline,
   mdiRefresh,
-  mdiShieldSearch,
   // sidebar nav icons
   mdiViewDashboard,
   mdiFolderMultiple,
@@ -371,7 +370,7 @@ void BaseLayoutGap
           <div class="metadata-row">
             <div class="meta-item">
               <span class="meta-label">Imported by</span>
-              <BaseAvatarUsername name="Wile E." initials="W" />
+              <BaseAvatarUsername name="Wile E." initials="W" size="small" />
             </div>
             <div class="meta-item">
               <span class="meta-label">Project owner</span>
@@ -404,7 +403,7 @@ void BaseLayoutGap
             <div class="meta-item meta-item--analysis">
               <span class="meta-label">Analysis summary</span>
               <span class="meta-value">
-                639 analyzed files <strong>(86%)</strong> &nbsp;·&nbsp;
+                639 analyzed files (86%) &nbsp;·&nbsp;
                 <a href="#" class="snapshot-link" @click.prevent>Repo breakdown</a>
               </span>
             </div>
@@ -638,7 +637,9 @@ void BaseLayoutGap
                 <!-- Learn more link -->
                 <div class="issue-learn-more">
                   <a href="#" class="learn-link" @click.prevent>
-                    <MdiIcon :path="mdiShieldSearch" :size="14" aria-hidden="true" />
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex-shrink:0">
+                      <path d="M12 3 1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9zm6.82 6L12 12.72 5.18 9 12 5.28zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73z"/>
+                    </svg>
                     Learn about this type of vulnerability and how to fix it
                   </a>
                 </div>
@@ -1105,7 +1106,7 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 
 .meta-value {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--pcl-color-ui-heading);
   line-height: 20px;
 }
@@ -1437,12 +1438,14 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 
 .file-path-link {
   color: var(--pcl-color-ui-dimmed);
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--pcl-color-ui-dimmed);
   font-size: inherit;
   font-family: inherit;
 }
 
-.file-path-link:hover { text-decoration: underline; }
+.file-path-link:hover { text-decoration: none; }
 
 .code-file-sep {
   color: var(--pcl-color-ui-dimmed);
@@ -1528,12 +1531,14 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
-  color: var(--pcl-color-ui-link);
-  text-decoration: none;
+  font-size: 13px;
+  color: var(--pcl-color-ui-dimmed);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--pcl-color-ui-dimmed);
 }
 
-.learn-link:hover { text-decoration: underline; }
+.learn-link:hover { text-decoration: none; }
 
 /* PRODUCTION-SAFE — ignore info expanded panel */
 .ignore-info {
