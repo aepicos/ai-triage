@@ -19,8 +19,6 @@ import { aiTriageIgnores } from './ai-triage-results'
 // the stubs and the real package. No template changes are needed.
 // ─────────────────────────────────────────────────────────────────────────────
 import {
-  BaseAlert,
-  BaseAvatarUsername,
   BaseBadge,
   BaseButton,
   BaseCaption,
@@ -51,8 +49,7 @@ import {
   mdiHelpCircle,
   mdiBell,
   mdiRobotOutline,
-  mdiMinus,
-  mdiPlus,
+  mdiClose,
 } from '@mdi/js'
 
 // ── Routing ───────────────────────────────────────────────────────────────────
@@ -125,6 +122,16 @@ const searchQuery   = ref('')
 const priorityRange = ref({ min: 0, max: 1000 })
 const issueScores   = issuesData.map(i => i.score)
 
+// ── AI triage flag lookup ─────────────────────────────────────────────────────
+const triageIssueIds = new Set(aiTriageIgnores.map(t => t.issueId))
+
+// ── User avatars ──────────────────────────────────────────────────────────────
+const userAvatars: Record<string, string> = {
+  'iainjmitchell': 'https://avatars.githubusercontent.com/u/1117136',
+  'ninakanti-bot':  'https://avatars.githubusercontent.com/u/276652664',
+  'karlatsnyk':     'https://avatars.githubusercontent.com/u/177523587',
+}
+
 // ── Retest ────────────────────────────────────────────────────────────────────
 const RETEST_DURATION_MS = 6000
 const retesting   = ref(false)
@@ -136,6 +143,7 @@ function onRetest() {
   setTimeout(() => {
     retesting.value = false
     retestDone.value = true
+    triageBannerOpen.value = false
     // Apply AI triage ignores
     for (const triage of aiTriageIgnores) {
       const issue = issues.value.find(i => i.id === triage.issueId)
@@ -155,11 +163,24 @@ function onRetest() {
   }, RETEST_DURATION_MS)
 }
 
-const severityFilters    = ref<string[]>([])
-const statusFilters      = ref<string[]>(['open'])
-const languageFilters    = ref<string[]>([])
-const vulnTypeFilters    = ref<string[]>([])
-const confidenceFilters  = ref<string[]>([])
+// ── AI triage banner state ────────────────────────────────────────────────────
+const triageBannerOpen      = ref(true)
+const triageBannerDismissed = ref(false)
+
+const triageConfidenceCounts = {
+  high:   aiTriageIgnores.filter(t => t.confidence === 'High').length,
+  medium: aiTriageIgnores.filter(t => t.confidence === 'Medium').length,
+  low:    aiTriageIgnores.filter(t => t.confidence === 'Low').length,
+}
+
+const confidenceBarWidths = computed(() => {
+  const t = (triageConfidenceCounts.high + triageConfidenceCounts.medium + triageConfidenceCounts.low) || 1
+  return {
+    high:   (triageConfidenceCounts.high   / t * 100).toFixed(1) + '%',
+    medium: (triageConfidenceCounts.medium / t * 100).toFixed(1) + '%',
+    low:    (triageConfidenceCounts.low    / t * 100).toFixed(1) + '%',
+  }
+})
 
 function reviewLowConfidence() {
   severityFilters.value   = []
@@ -170,6 +191,12 @@ function reviewLowConfidence() {
   priorityRange.value     = { min: 0, max: 1000 }
   confidenceFilters.value = ['Low']
 }
+
+const severityFilters    = ref<string[]>([])
+const statusFilters      = ref<string[]>(['open'])
+const languageFilters    = ref<string[]>([])
+const vulnTypeFilters    = ref<string[]>([])
+const confidenceFilters  = ref<string[]>([])
 
 // Filter section open/closed state
 const filterOpen = ref<Record<string, boolean>>({
@@ -200,20 +227,6 @@ const confidenceCounts = computed(() => ({
   low:    issues.value.filter(i => i.ignoreInfo?.confidence === 'Low').length,
 }))
 
-// ── AI triage banner (post-retest) ────────────────────────────────────────────
-const triageBannerOpen = ref(false)
-const showTriageBanner = computed(() => retestDone.value)
-const confidenceTotal = computed(() =>
-  confidenceCounts.value.high + confidenceCounts.value.medium + confidenceCounts.value.low
-)
-const confidenceBarWidths = computed(() => {
-  const t = confidenceTotal.value || 1
-  return {
-    high:   (confidenceCounts.value.high   / t * 100).toFixed(1) + '%',
-    medium: (confidenceCounts.value.medium / t * 100).toFixed(1) + '%',
-    low:    (confidenceCounts.value.low    / t * 100).toFixed(1) + '%',
-  }
-})
 
 const languageCounts = computed(() => ({
   typescript: issuesData.filter(i => i.filePath.endsWith('.ts')).length,
@@ -378,11 +391,11 @@ void BaseLayoutGap
         <!-- Row 1: breadcrumbs left · actions right -->
         <div class="page-header-top">
           <div class="breadcrumbs">
-            <a href="#" class="breadcrumb-link" @click.prevent>acme</a>
+            <a href="#" class="breadcrumb-link" @click.prevent>wise-cracking-philanthropists</a>
             <MdiIcon :path="mdiChevronRight" :size="16" style="color:var(--pcl-color-ui-dimmed)" aria-hidden="true" />
             <a href="#" class="breadcrumb-link" @click.prevent>Projects</a>
             <MdiIcon :path="mdiChevronRight" :size="16" style="color:var(--pcl-color-ui-dimmed)" aria-hidden="true" />
-            <a href="#" class="breadcrumb-link" @click.prevent>acme/juice-shop</a>
+            <a href="#" class="breadcrumb-link" @click.prevent>snyk/juice-shop</a>
             <BaseBadge>master</BaseBadge>
           </div>
           <div class="page-header-actions">
@@ -412,13 +425,87 @@ void BaseLayoutGap
       <!-- Page body scroll area -->
       <div class="page-body">
 
-        <!-- Alert banner: pre-retest warning → post-retest success -->
-        <BaseAlert v-if="!retestDone" variant="warning" size="page">
-          <strong>Snyk Code AI triage has run.</strong> Retest the project to capture recent policy updates and ignored issues.
-        </BaseAlert>
-        <BaseAlert v-else variant="success" size="page" :dismissible="true">
-          <strong>The project was successfully retested.</strong>
-        </BaseAlert>
+        <!-- AI Triage banner -->
+        <div v-if="!triageBannerDismissed" class="triage-banner-container">
+        <div class="triage-banner-outer" :class="retestDone ? 'triage-banner-outer--done' : 'triage-banner-outer--pending'">
+
+          <!-- Header row -->
+          <div class="triage-banner-hdr" :class="{ 'triage-banner-hdr--pending': !retestDone }">
+            <div class="triage-banner-label">
+              <button class="triage-banner-chevron" type="button" @click="triageBannerOpen = !triageBannerOpen" :aria-expanded="String(triageBannerOpen)">
+                <MdiIcon :path="triageBannerOpen ? mdiChevronDown : mdiChevronRight" :size="20" aria-hidden="true" />
+              </button>
+              <p v-if="!retestDone" class="triage-banner-text triage-banner-text--pending">
+                <strong>Retest pending.</strong> AI triage ran 2h ago and applied {{ aiTriageIgnores.length }} suppressions. <strong>Current view is out of date.</strong>
+              </p>
+              <p v-else class="triage-banner-text">
+                <strong class="triage-text-heading">AI triage ran 4h ago</strong> and applied {{ aiTriageIgnores.length }} suppressions.<template v-if="triageConfidenceCounts.low > 0"> <strong class="triage-text-warn">{{ triageConfidenceCounts.low }} finding{{ triageConfidenceCounts.low === 1 ? '' : 's' }} flagged for manual review.</strong></template>
+              </p>
+            </div>
+            <button v-if="!retestDone" class="retest-btn" :class="{ 'retest-btn--busy': retesting }" type="button" :disabled="retesting" @click="onRetest">
+              <span v-if="retesting" class="retest-spinner" aria-hidden="true"></span>
+              <MdiIcon v-else :path="mdiRefresh" :size="14" aria-hidden="true" />
+              Retest
+            </button>
+            <button v-else class="triage-dismiss-btn" type="button" aria-label="Dismiss" @click="triageBannerDismissed = true">
+              <MdiIcon :path="mdiClose" :size="20" aria-hidden="true" />
+            </button>
+          </div>
+
+          <!-- Expandable panel: KPIs + low-conf alert -->
+          <template v-if="triageBannerOpen">
+
+            <div class="triage-banner-content">
+              <div class="triage-kpis">
+                <div class="triage-kpi">
+                  <p class="triage-kpi-label">Issues evaluated</p>
+                  <p class="triage-kpi-value">{{ issues.length }}</p>
+                  <p class="triage-kpi-sub">From last scan</p>
+                </div>
+                <div class="triage-kpi">
+                  <p class="triage-kpi-label">Issues suppressed</p>
+                  <p class="triage-kpi-value">{{ aiTriageIgnores.length }}</p>
+                  <p class="triage-kpi-sub">{{ Math.round(aiTriageIgnores.length / issues.length * 100) }}% of issues</p>
+                </div>
+                <div class="triage-kpi">
+                  <p class="triage-kpi-label">Flagged for review</p>
+                  <p class="triage-kpi-value" :class="{ 'triage-kpi-value--danger': triageConfidenceCounts.low > 0 }">{{ triageConfidenceCounts.low }}</p>
+                  <p class="triage-kpi-sub">Manual review recommended</p>
+                </div>
+                <div class="triage-kpi triage-kpi--chart">
+                  <p class="triage-kpi-label">Confidence distribution</p>
+                  <div class="triage-conf-bar-wrap">
+                    <div class="triage-conf-bar">
+                      <div class="triage-conf-seg triage-conf-seg--high"   :style="{ width: confidenceBarWidths.high }"></div>
+                      <div class="triage-conf-seg triage-conf-seg--medium" :style="{ width: confidenceBarWidths.medium }"></div>
+                      <div class="triage-conf-seg triage-conf-seg--low"    :style="{ width: confidenceBarWidths.low }"></div>
+                    </div>
+                  </div>
+                  <div class="triage-conf-legend">
+                    <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--high"></span>High ({{ triageConfidenceCounts.high }})</span>
+                    <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--medium"></span>Medium ({{ triageConfidenceCounts.medium }})</span>
+                    <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--low"></span>Low ({{ triageConfidenceCounts.low }})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="triageConfidenceCounts.low > 0" class="triage-low-conf">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="triage-low-conf-icon">
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+              </svg>
+              <p class="triage-low-conf-text">
+                <strong>{{ triageConfidenceCounts.low }} finding{{ triageConfidenceCounts.low === 1 ? '' : 's' }} suppressed with low confidence</strong>
+                — these decisions are less certain and warrant manual review before the next retest.
+                <button class="triage-link-btn" @click="reviewLowConfidence()">Review</button>
+                <span class="triage-low-conf-sep" aria-hidden="true"> | </span>
+                <button class="triage-link-btn" @click="navigate('ignore-requests')">View all issues</button>
+              </p>
+            </div>
+
+          </template>
+        </div>
+        </div>
 
         <!-- Summary section: snapshot · metadata · issues tab — all one canvas-bg block -->
         <!-- PRODUCTION-SAFE -->
@@ -443,14 +530,17 @@ void BaseLayoutGap
           <div class="metadata-row">
             <div class="meta-item">
               <span class="meta-label">Imported by</span>
-              <BaseAvatarUsername name="Wile E." initials="W" size="small" />
+              <div class="meta-user-row">
+                <img src="https://avatars.githubusercontent.com/u/1117136" alt="" class="meta-user-avatar" />
+                <span class="meta-user-name">iainjmitchell</span>
+              </div>
             </div>
             <div class="meta-item">
               <span class="meta-label">Project owner</span>
-              <BaseButton variant="link">
-                <template #leftIcon><MdiIcon :path="mdiPlusCircleOutline" :size="14" aria-hidden="true" /></template>
-                Add
-              </BaseButton>
+              <div class="meta-user-row">
+                <img src="https://avatars.githubusercontent.com/u/41266" alt="" class="meta-user-avatar" />
+                <span class="meta-user-name">cajun-rat</span>
+              </div>
             </div>
             <div class="meta-item">
               <span class="meta-label">Environment</span>
@@ -611,76 +701,6 @@ void BaseLayoutGap
           <!-- Issue list -->
           <div class="issue-list">
 
-            <!-- AI triage summary banner (post-retest) -->
-            <Transition name="triage-banner">
-              <div v-if="showTriageBanner" class="triage-banner" :class="{ 'triage-banner--open': triageBannerOpen }">
-
-                <!-- Header row -->
-                <div class="triage-banner-header">
-                  <div class="triage-banner-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="triage-banner-icon">
-                      <path d="M18 10L19.25 7.25L22 6L19.25 4.75L18 2L16.75 4.75L14 6L16.75 7.25L18 10ZM12.5 11.5L10 6L7.5 11.5L2 14L7.5 16.5L10 22L12.5 16.5L18 14L12.5 11.5Z"/>
-                    </svg>
-                    <span class="triage-banner-label">{{ statusCounts.ignored }} issues were suppressed by Snyk Code AI Triage</span>
-                  </div>
-                  <button class="triage-banner-toggle" @click="triageBannerOpen = !triageBannerOpen">
-                    <MdiIcon :path="triageBannerOpen ? mdiMinus : mdiPlus" :size="14" aria-hidden="true" />
-                    {{ triageBannerOpen ? 'Hide info' : 'Show info' }}
-                  </button>
-                </div>
-
-                <!-- KPI section (open only) -->
-                <div v-if="triageBannerOpen" class="triage-banner-content">
-                  <div class="triage-kpis">
-                    <div class="triage-kpi">
-                      <p class="triage-kpi-label">Issues evaluated</p>
-                      <p class="triage-kpi-value">{{ issues.length }}</p>
-                      <p class="triage-kpi-sub">From last scan</p>
-                    </div>
-                    <div class="triage-kpi">
-                      <p class="triage-kpi-label">Issues suppressed</p>
-                      <p class="triage-kpi-value">{{ statusCounts.ignored }}</p>
-                      <p class="triage-kpi-sub">{{ Math.round(statusCounts.ignored / issues.length * 100) }}% of issues</p>
-                    </div>
-                    <div class="triage-kpi">
-                      <p class="triage-kpi-label">Flagged for review</p>
-                      <p class="triage-kpi-value" :class="{ 'triage-kpi-value--danger': confidenceCounts.low > 0 }">{{ confidenceCounts.low }}</p>
-                      <p class="triage-kpi-sub">Manual review recommended</p>
-                    </div>
-                    <div class="triage-kpi triage-kpi--chart">
-                      <p class="triage-kpi-label">Confidence distribution</p>
-                      <div class="triage-conf-bar-wrap">
-                        <div class="triage-conf-bar">
-                          <div class="triage-conf-seg triage-conf-seg--high"   :style="{ width: confidenceBarWidths.high }"></div>
-                          <div class="triage-conf-seg triage-conf-seg--medium" :style="{ width: confidenceBarWidths.medium }"></div>
-                          <div class="triage-conf-seg triage-conf-seg--low"    :style="{ width: confidenceBarWidths.low }"></div>
-                        </div>
-                      </div>
-                      <div class="triage-conf-legend">
-                        <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--high"></span>High ({{ confidenceCounts.high }})</span>
-                        <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--medium"></span>Medium ({{ confidenceCounts.medium }})</span>
-                        <span class="triage-conf-item"><span class="triage-conf-dot triage-conf-dot--low"></span>Low ({{ confidenceCounts.low }})</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Low-confidence alert section (open only) -->
-                <div v-if="triageBannerOpen && confidenceCounts.low > 0" class="triage-alert">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="triage-alert-icon">
-                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                  </svg>
-                  <p class="triage-alert-text">
-                    <strong>{{ confidenceCounts.low }} finding{{ confidenceCounts.low === 1 ? '' : 's' }} suppressed with low confidence</strong>
-                    <span class="triage-alert-dimmed">—</span> <span class="triage-alert-body">manual review recommended</span> <button class="triage-alert-link" @click="reviewLowConfidence()">Review</button>
-                    <span class="triage-alert-sep" aria-hidden="true"> | </span>
-                    <button class="triage-alert-link" @click="navigate('ignore-requests')">View all issues</button>
-                  </p>
-                </div>
-
-              </div>
-            </Transition>
-
             <!-- Search + controls bar (single row) -->
             <div class="search-controls-bar">
               <BaseInput v-model="searchQuery" placeholder="Search..." size="small" style="width:320px;flex-shrink:0" />
@@ -777,14 +797,12 @@ void BaseLayoutGap
                   v-html="highlightDescription(issue.description, issue.descriptionHighlights)"
                 />
 
-                <!-- Learn more link -->
-                <div class="issue-learn-more">
-                  <a href="#" class="learn-link" @click.prevent>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex-shrink:0">
-                      <path d="M12 3 1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9zm6.82 6L12 12.72 5.18 9 12 5.28zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73z"/>
-                    </svg>
-                    Learn about this type of vulnerability and how to fix it
-                  </a>
+                <!-- AI triage suppression banner -->
+                <div v-if="!issue.ignored && triageIssueIds.has(issue.id)" class="issue-triage-flag">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="issue-triage-flag-icon">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                  </svg>
+                  <span>This issue has been flagged for suppression by Snyk Code AI Triage</span>
                 </div>
 
                 <!-- Ignore info (expanded for ignored issues) -->
@@ -803,9 +821,10 @@ void BaseLayoutGap
                         </div>
                         <span class="ignore-avatar-name">{{ issue.ignoreInfo.by }}</span>
                       </div>
-                      <!-- Regular user avatar: initial circle + name -->
+                      <!-- Regular user avatar: GitHub avatar + name -->
                       <div v-else class="ignore-avatar-row">
-                        <div class="ignore-avatar-circle">{{ issue.ignoreInfo.by[0] }}</div>
+                        <img v-if="userAvatars[issue.ignoreInfo.by]" :src="userAvatars[issue.ignoreInfo.by]" :alt="issue.ignoreInfo.by" class="ignore-avatar-img" />
+                        <div v-else class="ignore-avatar-circle">{{ issue.ignoreInfo.by[0] }}</div>
                         <span class="ignore-avatar-name">{{ issue.ignoreInfo.by }}</span>
                       </div>
                     </div>
@@ -832,28 +851,36 @@ void BaseLayoutGap
                   </div>
                 </div>
 
-                <!-- Actions -->
+                <!-- Footer: learn link + action buttons -->
                 <div class="issue-actions">
-                  <template v-if="issue.ignored">
-                    <BaseButton size="small">
-                      <template #leftIcon><MdiIcon :path="mdiEye" :size="14" aria-hidden="true" /></template>
-                      Unignore
+                  <a href="#" class="learn-link" @click.prevent>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex-shrink:0">
+                      <path d="M12 3 1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9zm6.82 6L12 12.72 5.18 9 12 5.28zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73z"/>
+                    </svg>
+                    Learn about this type of vulnerability and how to fix it
+                  </a>
+                  <div class="issue-footer-buttons">
+                    <template v-if="issue.ignored">
+                      <BaseButton size="small">
+                        <template #leftIcon><MdiIcon :path="mdiEye" :size="14" aria-hidden="true" /></template>
+                        Unignore
+                      </BaseButton>
+                      <BaseButton size="small">
+                        <template #leftIcon><MdiIcon :path="mdiPencil" :size="14" aria-hidden="true" /></template>
+                        Edit ignore
+                      </BaseButton>
+                    </template>
+                    <template v-else>
+                      <BaseButton size="small">
+                        <template #leftIcon><MdiIcon :path="mdiEye" :size="14" aria-hidden="true" /></template>
+                        Ignore issue
+                      </BaseButton>
+                    </template>
+                    <BaseButton variant="primary" size="small">
+                      View details
+                      <template #rightIcon><MdiIcon :path="mdiChevronRight" :size="14" aria-hidden="true" /></template>
                     </BaseButton>
-                    <BaseButton size="small">
-                      <template #leftIcon><MdiIcon :path="mdiPencil" :size="14" aria-hidden="true" /></template>
-                      Edit ignore
-                    </BaseButton>
-                  </template>
-                  <template v-else>
-                    <BaseButton size="small">
-                      <template #leftIcon><MdiIcon :path="mdiEye" :size="14" aria-hidden="true" /></template>
-                      Ignore issue
-                    </BaseButton>
-                  </template>
-                  <BaseButton variant="primary" size="small">
-                    View details
-                    <template #rightIcon><MdiIcon :path="mdiChevronRight" :size="14" aria-hidden="true" /></template>
-                  </BaseButton>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1224,87 +1251,94 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 }
 
 /* ── AI triage banner ────────────────────────────────────────────────────── */
-.triage-banner {
-  flex-shrink: 0;
-  border: 1px dashed var(--pcl-color-ui-border);
-  border-radius: 8px;
-  margin: var(--pcl-space-m, 16px) var(--pcl-space-l, 24px) 0 var(--pcl-space-l, 24px);
+.triage-banner-container {
   background: var(--pcl-color-ui-canvas);
-  overflow: hidden;
-}
-
-.triage-banner--open {
-  border-style: solid;
-}
-
-/* header row */
-.triage-banner-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--pcl-space-xs) var(--pcl-space-s);
-}
-
-.triage-banner-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.triage-banner-icon {
-  color: var(--pcl-color-ui-dimmed);
+  padding: 8px;
   flex-shrink: 0;
 }
 
+.triage-banner-outer {
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--pcl-color-ui-bg);
+  border: 1px solid var(--pcl-color-ui-border);
+}
+.triage-banner-outer--pending { border-color: #fdd3b6; }
+.triage-banner-outer--done    { border-color: var(--pcl-color-ui-border); }
+
+/* Header row */
+.triage-banner-hdr {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 12px 8px 8px;
+}
+.triage-banner-hdr--pending { background: #fff4ed; }
+
+/* Label area: chevron + text */
 .triage-banner-label {
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.1px;
-  color: var(--pcl-color-ui-heading);
-  line-height: 18px;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
-.triage-banner-toggle {
+/* Chevron toggle */
+.triage-banner-chevron {
   display: inline-flex;
   align-items: center;
-  gap: var(--pcl-space-xxs);
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
-  font: inherit;
+  color: var(--pcl-color-ui-dimmed);
+  border-radius: var(--pcl-radius-medium, 4px);
+}
+.triage-banner-chevron:hover { background: rgba(0,0,0,0.05); }
+.triage-banner-hdr--pending .triage-banner-chevron { color: #b6540b; }
+
+/* Banner text */
+.triage-banner-text {
   font-size: 14px;
-  color: var(--pcl-color-ui-link);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  white-space: nowrap;
-  flex-shrink: 0;
+  line-height: 18px;
+  letter-spacing: 0.1px;
+  color: var(--pcl-color-ui-body);
+  margin: 0;
 }
-.triage-banner-toggle:hover { text-decoration: none; }
+.triage-banner-text--pending { color: #b6540b; }
+.triage-text-heading { color: var(--pcl-color-ui-heading); font-weight: 500; }
+.triage-text-warn    { color: #b6540b; }
 
-/* KPI section */
+/* Dismiss button */
+.triage-dismiss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--pcl-color-ui-dimmed);
+  border-radius: var(--pcl-radius-medium, 4px);
+}
+.triage-dismiss-btn:hover { background: rgba(0,0,0,0.05); color: var(--pcl-color-ui-body); }
+
+/* KPI content panel */
 .triage-banner-content {
-  border-top: 1px solid var(--pcl-color-ui-border-light);
-  padding: var(--pcl-space-xs) var(--pcl-space-l);
+  border-top: 1px solid #f2f1f4;
+  padding: 12px 24px;
 }
-
-/* KPI row */
-.triage-kpis {
-  display: flex;
-  align-items: flex-start;
-  overflow: hidden;
-}
-
-.triage-kpi {
-  flex: 1 0 0;
-  min-width: 1px;
-}
-
-.triage-kpi--chart {
-  flex: none;
-  flex-shrink: 0;
-}
+.triage-kpis { display: flex; align-items: flex-start; }
+.triage-kpi  { flex: 1 0 0; min-width: 0; }
+.triage-kpi--chart { flex: none; flex-shrink: 0; }
 
 .triage-kpi-label {
   font-size: 14px;
@@ -1313,7 +1347,6 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   margin: 0 0 12px;
   line-height: 18px;
 }
-
 .triage-kpi-value {
   font-size: 24px;
   font-weight: 700;
@@ -1321,23 +1354,16 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   line-height: 28px;
   margin: 0;
 }
-
 .triage-kpi-sub {
   font-size: 12px;
   color: var(--pcl-color-ui-dimmed);
   margin: 0;
   line-height: 16px;
 }
+.triage-kpi-value--danger { color: var(--pcl-color-danger-text, #8f0018); }
 
-.triage-kpi-value--danger {
-  color: var(--pcl-color-danger-text, #8f0018);
-}
-
-/* confidence bar chart */
-.triage-conf-bar-wrap {
-  padding: 8px 0;
-}
-
+/* Confidence bar */
+.triage-conf-bar-wrap { padding: 8px 0; }
 .triage-conf-bar {
   display: flex;
   gap: 2px;
@@ -1346,17 +1372,11 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   overflow: hidden;
   box-shadow: 0 0 0 2px var(--pcl-color-ui-bg);
 }
-
-.triage-conf-seg { height: 100%; border-radius: 0; }
-.triage-conf-seg--high   { background: #2d9283; }
-.triage-conf-seg--medium { background: #e27122; }
-.triage-conf-seg--low    { background: #d8082d; }
-
-.triage-conf-legend {
-  display: flex;
-  gap: 16px;
-}
-
+.triage-conf-seg          { height: 100%; border-radius: 0; }
+.triage-conf-seg--high    { background: #2d9283; }
+.triage-conf-seg--medium  { background: #e27122; }
+.triage-conf-seg--low     { background: #d8082d; }
+.triage-conf-legend { display: flex; gap: 16px; }
 .triage-conf-item {
   display: inline-flex;
   align-items: center;
@@ -1365,7 +1385,6 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   color: var(--pcl-color-ui-dimmed);
   white-space: nowrap;
 }
-
 .triage-conf-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
@@ -1376,29 +1395,22 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
 .triage-conf-dot--medium { background: #e27122; }
 .triage-conf-dot--low    { background: #d8082d; }
 
-/* low-confidence alert */
-.triage-alert {
+/* Low-confidence alert row */
+.triage-low-conf {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: var(--pcl-space-xs) var(--pcl-space-l);
-  border-top: 1px solid var(--pcl-color-ui-border-light);
+  border-top: 1px solid #f2f1f4;
+  padding: 8px 24px;
 }
-
-.triage-alert-icon {
-  color: var(--pcl-color-warn-text, #b6540b);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.triage-alert-text {
+.triage-low-conf-icon { color: #b6540b; flex-shrink: 0; margin-top: 1px; }
+.triage-low-conf-text {
   font-size: 14px;
-  color: var(--pcl-color-warn-text, #b6540b);
+  color: #b6540b;
   margin: 0;
   line-height: 20px;
 }
-
-.triage-alert-link {
+.triage-link-btn {
   border: none; background: none; padding: 0;
   font: inherit; cursor: pointer;
   color: var(--pcl-color-ui-link, #145deb);
@@ -1406,41 +1418,8 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   text-underline-offset: 2px;
   margin-left: 4px;
 }
-.triage-alert-link:hover { text-decoration: none; }
-
-.triage-alert-dimmed {
-  color: var(--pcl-color-ui-dimmed);
-}
-
-.triage-alert-body {
-  color: var(--pcl-color-ui-body);
-}
-
-.triage-alert-sep {
-  color: var(--pcl-color-ui-dimmed);
-  padding: 0 2px;
-  user-select: none;
-}
-
-/* transition */
-.triage-banner-enter-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  animation: triage-flash 1.6s ease forwards;
-}
-.triage-banner-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.triage-banner-enter-from,
-.triage-banner-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-@keyframes triage-flash {
-  0%   { background-color: var(--pcl-color-ui-canvas); }
-  15%  { background-color: #ece7f8; }
-  100% { background-color: var(--pcl-color-ui-canvas); }
-}
+.triage-link-btn:hover { text-decoration: none; }
+.triage-low-conf-sep { color: var(--pcl-color-ui-dimmed); padding: 0 2px; user-select: none; }
 
 /* PRODUCTION-SAFE — link text (breadcrumbs, inline body links) */
 .link-text {
@@ -1896,16 +1875,33 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   cursor: pointer;
 }
 
-/* PRODUCTION-SAFE — learn more link row */
-.issue-learn-more {
-  padding: 2px 16px 16px;
+/* AI triage suppression banner */
+.issue-triage-flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 8px;
+  padding: 8px 8px 8px 12px;
+  min-height: 40px;
+  border-radius: var(--pcl-radius-medium, 4px);
+  background: #fff4ed;
+  border: 1px solid #fdd3b6;
+  font-size: 14px;
+  line-height: 18px;
+  letter-spacing: 0.1px;
+  color: #b6540b;
+}
+
+.issue-triage-flag-icon {
+  flex-shrink: 0;
+  color: #b6540b;
 }
 
 .learn-link {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--pcl-color-ui-dimmed);
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -1958,6 +1954,35 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   color: #fff;
 }
 
+.meta-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.meta-user-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.meta-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pcl-color-ui-heading);
+  line-height: 20px;
+}
+
+.ignore-avatar-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .ignore-avatar-circle {
   width: 18px;
   height: 18px;
@@ -1978,12 +2003,18 @@ body { margin: 0; font-family: 'Roboto', 'Inter', sans-serif; background: var(--
   color: var(--pcl-color-ui-body);
 }
 
-/* PRODUCTION-SAFE — issue action buttons row */
+/* PRODUCTION-SAFE — issue card footer row */
 .issue-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-top: 1px solid #f2f1f4;
+}
+
+.issue-footer-buttons {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 0 16px 12px;
 }
 </style>

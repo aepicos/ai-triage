@@ -147,7 +147,7 @@ export const issues: Issue[] = [
     filePath: 'lib/insecurity.ts',
     steps: 1,
     ignoreInfo: {
-      by: 'Wile E.',
+      by: 'iainjmitchell',
       minutesAgo: 4320,
       type: 'Not vulnerable',
       path: '*',
@@ -437,7 +437,7 @@ export const issues: Issue[] = [
     filePath: 'routes/login.ts',
     steps: 1,
     ignoreInfo: {
-      by: 'Penelope P.',
+      by: 'ninakanti-bot',
       minutesAgo: 720,
       type: "Won't fix",
       path: '*',
@@ -1103,7 +1103,7 @@ export const issues: Issue[] = [
     filePath: 'routes/address.ts',
     steps: 4,
     ignoreInfo: {
-      by: 'Wile E.',
+      by: 'karlatsnyk',
       minutesAgo: 180,
       type: 'Temporary ignore',
       path: 'routes/address.ts',
@@ -2769,7 +2769,7 @@ export const issues: Issue[] = [
     filePath: 'routes/delivery.ts',
     steps: 1,
     ignoreInfo: {
-      by: 'Daffy D.',
+      by: 'ninakanti-bot',
       minutesAgo: 60,
       type: "Won't fix",
       path: 'routes/delivery.ts',
