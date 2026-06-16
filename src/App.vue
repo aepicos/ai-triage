@@ -432,7 +432,7 @@ void BaseLayoutGap
           <!-- Header row -->
           <div class="triage-banner-hdr" :class="{ 'triage-banner-hdr--pending': !retestDone }">
             <div class="triage-banner-label">
-              <button class="triage-banner-chevron" type="button" @click="triageBannerOpen = !triageBannerOpen" :aria-expanded="String(triageBannerOpen)">
+              <button class="triage-banner-chevron" type="button" @click="triageBannerOpen = !triageBannerOpen" :aria-expanded="triageBannerOpen">
                 <MdiIcon :path="triageBannerOpen ? mdiChevronDown : mdiChevronRight" :size="20" aria-hidden="true" />
               </button>
               <p v-if="!retestDone" class="triage-banner-text triage-banner-text--pending">
