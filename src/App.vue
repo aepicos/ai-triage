@@ -193,7 +193,7 @@ function reviewLowConfidence() {
 }
 
 const severityFilters    = ref<string[]>([])
-const statusFilters      = ref<string[]>(['open'])
+const statusFilters      = ref<string[]>(['open', 'ignore-pending'])
 const languageFilters    = ref<string[]>([])
 const vulnTypeFilters    = ref<string[]>([])
 const confidenceFilters  = ref<string[]>([])
@@ -217,8 +217,9 @@ const severityCounts = computed(() => ({
 }))
 
 const statusCounts = computed(() => ({
-  open:    issues.value.filter(i => !i.ignored).length,
-  ignored: issues.value.filter(i =>  i.ignored).length,
+  open:          issues.value.filter(i => !i.ignored && !triageIssueIds.has(i.id)).length,
+  ignorePending: issues.value.filter(i => !i.ignored &&  triageIssueIds.has(i.id)).length,
+  ignored:       issues.value.filter(i =>  i.ignored).length,
 }))
 
 const confidenceCounts = computed(() => ({
@@ -251,9 +252,16 @@ const filteredIssues = computed(() => {
     // ── Status ───────────────────────────────────────────────────────────────
     // Empty selection = no constraint. Otherwise at least one value must match.
     if (statusFilters.value.length > 0) {
-      const wantOpen    = statusFilters.value.includes('open')
-      const wantIgnored = statusFilters.value.includes('ignored')
-      if (!(wantOpen && !issue.ignored) && !(wantIgnored && issue.ignored)) return false
+      const wantOpen          = statusFilters.value.includes('open')
+      const wantIgnorePending = statusFilters.value.includes('ignore-pending')
+      const wantIgnored       = statusFilters.value.includes('ignored')
+      const isPending = !issue.ignored && triageIssueIds.has(issue.id)
+      const isOpen    = !issue.ignored && !triageIssueIds.has(issue.id)
+      if (
+        !(wantOpen && isOpen) &&
+        !(wantIgnorePending && isPending) &&
+        !(wantIgnored && issue.ignored)
+      ) return false
     }
 
     // ── Severity ─────────────────────────────────────────────────────────────
@@ -641,6 +649,7 @@ void BaseLayoutGap
               </button>
               <div v-if="filterOpen.status" class="filter-options">
                 <BaseCheckbox v-model="statusFilters" value="open"><span class="filter-label-row">Open<span class="filter-count">{{ statusCounts.open }}</span></span></BaseCheckbox>
+                <BaseCheckbox v-model="statusFilters" value="ignore-pending"><span class="filter-label-row">Ignore pending<span class="filter-count">{{ statusCounts.ignorePending }}</span></span></BaseCheckbox>
                 <BaseCheckbox v-model="statusFilters" value="ignored"><span class="filter-label-row">Ignored<span class="filter-count">{{ statusCounts.ignored }}</span></span></BaseCheckbox>
               </div>
             </div>
